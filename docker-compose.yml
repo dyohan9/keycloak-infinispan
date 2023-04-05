@@ -1,0 +1,77 @@
+version: '2'
+services:
+
+  infinispan-server:
+    build: ./infinispan
+    volumes:
+      - ./infinispan/conf/infinispan-keycloak-database.xml:/opt/infinispan/server/conf/infinispan-keycloak.xml:z
+    environment:
+      DB_HOSTNAME: infinispan_db
+      DB_USERNAME: infinispan
+      DB_PASSWORD: infinispan
+      DB_DATABASE: infinispan
+      USER: keycloak
+      PASS: password
+    ports:
+      - "11222:11222"
+    depends_on:
+      - infinispan_db
+
+  infinispan_db:
+    image: postgres:11.12
+    environment:
+      POSTGRES_USER: infinispan
+      POSTGRES_PASSWORD: infinispan
+      POSTGRES_DB: infinispan
+    ports:
+      - "5432:5432"
+
+  keycloak:
+    build:
+      context: "./keycloak"
+      dockerfile: "./Dockerfile"
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_DB: postgres
+      KC_DB_URL_HOST: keycloak_db
+      KC_DB_DATABASE: keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: keycloak
+      KC_DB_SCHEMA: public
+      KC_CACHE_CONFIG_FILE: cache-custom-jgroups.xml
+      KC_HOSTNAME_STRICT_HTTPS: false
+      KC_HTTP_ENABLED: true
+      JAVA_OPTS: "-XX:MaxRAMPercentage=80 -XX:+UseG1GC -XX:MaxGCPauseMillis=500 -XX:+DisableExplicitGC -XX:+UseStringDeduplication -XX:+ParallelRefProcEnabled -Djava.net.preferIPv4Stack=true"
+      JAVA_TOOL_OPTIONS: "-Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.port=8790 -Dcom.sun.management.jmxremote.local.only=false -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false"
+
+    volumes:
+      - ./keycloak/cache-ispn-remote.xml:/opt/keycloak/conf/cache-ispn-remote.xml:z
+    command:
+      - "--verbose"
+      - "start"
+      - "--http-enabled=true"
+      - "--http-relative-path=/auth"
+      - "--http-port=8080"
+      - "--proxy=passthrough"
+      - "--hostname=localhost:8080"
+      - "--spi-events-listener-jboss-logging-success-level=info"
+      - "--spi-events-listener-jboss-logging-error-level=warn"
+      - "--cache-config-file=cache-ispn-remote.xml"
+      - "--spi-sticky-session-encoder-infinispan-should-attach-route=false"
+      - "-Djboss.site.name=site1"
+    ports:
+      - "8080:8080"
+      - "8443"
+      - "8787"
+      - "8790"
+
+  keycloak_db:
+    image: postgres:11.12
+    environment:
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: keycloak
+      POSTGRES_DB: keycloak
+    ports:
+      - "5432"
+  
